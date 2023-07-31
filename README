@@ -1,0 +1,5 @@
+Simple HTTP client CLI app that can:
+  -> List entries
+  -> Create a new entry
+
+(Work in Progress)
