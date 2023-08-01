@@ -1,5 +1,5 @@
 Simple HTTP client CLI app that can:
-  -> List entries
-  -> Create a new entry
+  -> Fetch an entry (GET)
+  -> Create a new entry (POST)
 
-(Work in Progress)
+The code should be simplified and clarified (Work in Progress)
