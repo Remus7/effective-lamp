@@ -1,101 +1,81 @@
 /// Documentation for REST calls in Rust can be found at: 
-/// https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
+///     https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
+///
+/// Guide for API url depending on request type:
+///     https://jsonplaceholder.typicode.com/guide/
 
-use serde_json::{Value, Map};
-use serde::{Deserialize, Serialize};
-use serde::de::DeserializeOwned;
-
+use serde_json::{Map, Value};
 use reqwest::Error;
 use reqwest;
 use std::result::Result;
+use std::io;
 
 #[allow(dead_code)]
 enum RequestType{
     Get,
     List,
-    Put,
     Post,
+    Put,
     Delete
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Json {
-    name: String,
-    age: u8,
-    is_male: bool,
-}
-
-#[allow(dead_code)]
-fn demo_json_parse(){
-    let json_str = r#"
-        {
-            "name" : "Remus",
-            "age" : 16,
-            "is_male" : true
-        }
-    "#;
-
-    let res_untyped: serde_json::Result<Value> = serde_json::from_str(json_str);
-    let res: serde_json::Result<Json> = serde_json::from_str(json_str);
-
-    match res_untyped{
-        Ok(val) => {
-            println!("{:?}", val);
-        },
-        Err(e) => panic!("!!Error: {}", e),
+fn try_u32_to_request(x: u32) -> Result<RequestType, &'static str>{
+    match x{
+        0 => Ok(RequestType::Get),
+        1 => Ok(RequestType::List),
+        2 => Ok(RequestType::Post),
+        3 => Ok(RequestType::Put),
+        4 => Ok(RequestType::Delete),
+        _ => Err("Request doesn't exist"),
     }
-    match res{
-        Ok(val) => {
-            println!("{:?}", val);
-        },
-        Err(e) => panic!("!!Error: {}", e),
-    }
-}
-
-async fn request_json<T>(request_url: String) -> Result<T, Error>
-where 
-    T: DeserializeOwned,    
-{
-    let response = reqwest::get(&request_url).await?;
-    let json = response.json().await?;
-    Ok(json)
-}
-
-async fn post_json<T>(request_url: String, body: &'static str) -> Result<T, Error>
-where 
-    T: DeserializeOwned,    
-{
-    let client = reqwest::Client::new();
-    let response = client.post(&request_url).body(body).send().await?;
-    let json = response.json().await?;
-    Ok(json)
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error>{
-    let my_request = RequestType::Post;
-    // demo_json_parse();
-    
-    match my_request{
-        RequestType::Get => {
-            let url = format!("https://jsonplaceholder.typicode.com/todos/1");
-            let json = request_json::<Map<String, Value>>(url).await?;
-            print!("{:?}", json);
-        },
-        RequestType::Post => {
-            let json_str = r#"
-                {
-                    "name" : "Remus",
-                    "age" : 16,
-                    "is_male" : true
-                }
-            "#;
+    println!("Choose request type:\n   [0] Get\n   [1] List\n   [2] Post");
 
-            let url = format!("https://jsonplaceholder.typicode.com/todos");
-            let json = post_json::<Map<String, Value>>(url, json_str).await?;
-            print!("{:?}", json);
-        },
-        _ => unimplemented!(),
+    let mut input_text = String::new();
+    io::stdin()
+        .read_line(&mut input_text)
+        .expect("failed to read from stdin");
+
+    let trimmed = input_text.trim();
+    let my_request = match trimmed.parse::<u32>() {
+        Ok(i) => try_u32_to_request(i),
+        Err(..) => panic!("Not an integer"),
     };
+
+    match my_request {
+        Ok(request) => {
+            println!("Setting up request");
+            match request{
+                RequestType::Get => {
+                    let url = format!("https://jsonplaceholder.typicode.com/todos/1");
+                    let response = reqwest::get(&url).await?;
+                    let json : Map<String, Value> = response.json().await?;
+
+                    println!("{:?}", json);
+                },
+                RequestType::Post => {
+                    let url = format!("https://jsonplaceholder.typicode.com/todos");
+                    let client = reqwest::Client::new();
+                    let json_str = r#"
+                        {
+                            "name" : "Remus",
+                            "age" : 16,
+                            "is_male" : true
+                        }
+                    "#;
+
+                    let response = client.post(&url).body(json_str).send().await?;
+                    let json : Map<String, Value> = response.json().await?;
+
+                    println!("{:?}", json);
+                },
+                _ => unimplemented!(),
+            } 
+        },
+        Err(e) => println!("{}", e),
+    }
     Ok(())
 }
