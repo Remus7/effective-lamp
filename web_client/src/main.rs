@@ -1,5 +1,6 @@
 /// Documentation for REST calls in Rust can be found at: 
 ///     https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
+///     https://docs.rs/reqwest/latest/reqwest/
 ///
 /// Guide for API url depending on request type:
 ///     https://jsonplaceholder.typicode.com/guide/
@@ -50,27 +51,40 @@ async fn main() -> Result<(), Error>{
             println!("Setting up request");
             match request{
                 RequestType::Get => {
-                    let url = format!("https://jsonplaceholder.typicode.com/todos/1");
+                    let url = "https://jsonplaceholder.typicode.com/todos/1".to_owned();
                     let response = reqwest::get(&url).await?;
                     let json : Map<String, Value> = response.json().await?;
 
                     println!("{:?}", json);
                 },
                 RequestType::Post => {
-                    let url = format!("https://jsonplaceholder.typicode.com/todos");
+                    let url = "https://jsonplaceholder.typicode.com/todos".to_owned();
                     let client = reqwest::Client::new();
-                    let json_str = r#"
-                        {
-                            "name" : "Remus",
-                            "age" : 16,
-                            "is_male" : true
-                        }
-                    "#;
 
-                    let response = client.post(&url).body(json_str).send().await?;
+                    // // Uncomment to set up json from HashMap
+                    // let mut json = std::collections::HashMap::new();
+                    // json.insert("lang", "rust");
+                    // json.insert("body", "json");
+
+                    // Uncomment to set up json from json! macro
+                    let json = serde_json::json!({
+                        "lang" : "rust",
+                        "body" : "json",
+                    });
+
+                    let response = client.post(&url).json(&json).send().await?;
                     let json : Map<String, Value> = response.json().await?;
 
                     println!("{:?}", json);
+                },
+                RequestType::List => {
+                    let url = "https://jsonplaceholder.typicode.com/posts".to_owned();
+                    let response = reqwest::get(&url).await?;
+                    let json : Vec<Map<String, Value>> = response.json().await?;
+
+                    for i in &json{
+                        println!("{:?}\n", i);
+                    }
                 },
                 _ => unimplemented!(),
             } 
