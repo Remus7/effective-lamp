@@ -86,6 +86,12 @@ async fn main() -> Result<(), Error>{
                         println!("{:?}\n", i);
                     }
                 },
+                RequestType::Delete => {
+                    let client = reqwest::Client::new();
+                    let response = client.delete("https://jsonplaceholder.typicode.com/posts/1").send().await?;
+                    let json: Map<String, Value> = response.json().await?;
+                    println!("{:?}", json);
+                }
                 _ => unimplemented!(),
             } 
         },
