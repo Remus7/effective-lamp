@@ -5,6 +5,7 @@ use std::process::Command;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use image;
 
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey, read_service_account_key};
 use std::path::Path;
@@ -79,25 +80,21 @@ async fn convert_content(auth_token: &str, file_id: &str) -> Result<Value, anyho
 /// Download image, indentified by file_id
 async fn download_image(auth_token: &str, file_id: &str, mime_type: &str) -> Result<String, anyhow::Error>{
     let endpoint = "https://www.googleapis.com";
-    let url = format!("{endpoint}/drive/v3/files/{file_id}?alt=media&mimeType={mime_type}");
+    let url = format!("{endpoint}/drive/v3/files/{file_id}?mimeType={mime_type}");
     // println!("{}", url);
 
     let client = reqwest::Client::new();
-    let image_file = client.get(&url).header(AUTHORIZATION, format!("Bearer {auth_token}")).send().await?.text().await?;
-    // println!("{}", image_file);
+    let image_file = client.get(&format!("{url}&alt=media")).header(AUTHORIZATION, format!("Bearer {auth_token}")).send().await?.text().await?;
 
     Ok(image_file)
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error>{
     let current_task = Task::FetchPhotos;
 
-    let token = match get_auth_token().await {
-        Ok(t) => t,
-        Err(e) => panic!("Error: {:?}", e),
-    };
-    let folder_list = list_files(&token, FOLDER_ID).await.unwrap();
+    let token = get_auth_token().await?;
+    let folder_list = list_files(&token, FOLDER_ID).await?;
     let all_files_id = Value::as_array(&folder_list["files"]).unwrap();
 
     let mut all_files_content = Map::<String, Value>::new();
@@ -109,23 +106,23 @@ async fn main() {
 
                 if file_type == EXCEL_MIME_TYPE {
                     let file_id = i["id"].as_str().unwrap();
-                    let file_content = convert_content(&token, file_id).await.unwrap();
+                    let file_content = convert_content(&token, file_id).await?;
                     let file_name = i["name"].as_str().unwrap();
 
                     all_files_content.insert(file_name.to_owned(), file_content);
                 }
             }
             let json_result = Value::Object(all_files_content);
-            let mut file = File::create("json_result.json").unwrap();
-            file.write_all(json_result.to_string().as_bytes()).unwrap();
+            let mut file = File::create("json_result.json")?;
+            file.write_all(json_result.to_string().as_bytes())?;
         },
 
         Task::FetchPhotos => {
             let dir_path = &format!("./{PHOTOS_NAME}");
             if Path::new(dir_path).is_dir() {
-                fs::remove_dir_all(PHOTOS_NAME).unwrap();
+                fs::remove_dir_all(PHOTOS_NAME)?;
             }
-            fs::create_dir(dir_path).unwrap();
+            fs::create_dir(dir_path)?;
 
             for i in all_files_id.iter(){
                 let file_type = i["mimeType"].as_str().unwrap();
@@ -133,7 +130,7 @@ async fn main() {
 
                 if file_type == FOLDER_MIME_TYPE && file_name == "people" {
                     let folder_id = i["id"].as_str().unwrap();
-                    let all_photos = list_files(&token, folder_id).await.unwrap();
+                    let all_photos = list_files(&token, folder_id).await?;
                     let all_photos_id = Value::as_array(&all_photos["files"]).unwrap();
                     // println!("{}", all_photos);
                     
@@ -141,14 +138,17 @@ async fn main() {
                         let image_id = j["id"].as_str().unwrap();
                         let mime_type = j["mimeType"].as_str().unwrap();
                         let file_name = j["name"].as_str().unwrap();
-                        let image_content = download_image(&token, image_id, mime_type).await.unwrap();
+                        let image_content_buffer = download_image(&token, image_id, mime_type).await?;
+                        // println!("{:?}", image_content_buffer);
 
-                        let mut file = File::create(format!("{PHOTOS_NAME}/{file_name}")).unwrap();
-                        file.write_all(image_content.to_string().as_bytes()).unwrap();
+                        let mut file = File::create(&format!("{PHOTOS_NAME}/{file_name}"))?;
+                        file.write_all(image_content_buffer.to_string().as_bytes())?;
+                        // let _file = image::save_buffer(&Path::new(&format!("{PHOTOS_NAME}/{file_name}")), image_content_buffer.as_bytes(), 1271, 1310, image::ColorType::Rgba8);
                     }
                 }
             }
         },
     }
-
+    
+    Ok(())
 }

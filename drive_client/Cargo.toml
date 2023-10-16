@@ -10,3 +10,4 @@ reqwest = {version = "*", features = ["json"]}
 tokio = {version = "1", features = ["full"]}
 anyhow = "*"
 yup-oauth2 = "*"
+image = "*"
