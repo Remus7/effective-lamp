@@ -5,7 +5,7 @@ use std::process::Command;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use image;
+use curl::easy::{Easy, List};
 
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey, read_service_account_key};
 use std::path::Path;
@@ -78,20 +78,31 @@ async fn convert_content(auth_token: &str, file_id: &str) -> Result<Value, anyho
 }
 
 /// Download image, indentified by file_id
-async fn download_image(auth_token: &str, file_id: &str, mime_type: &str) -> Result<String, anyhow::Error>{
+async fn download_image(file_name: &str, auth_token: &str, file_id: &str, mime_type: &str) -> Result<(), anyhow::Error>{
     let endpoint = "https://www.googleapis.com";
-    let url = format!("{endpoint}/drive/v3/files/{file_id}?mimeType={mime_type}");
+    let url = format!("{endpoint}/drive/v3/files/{file_id}?mimeType={mime_type}&alt=media");
     // println!("{}", url);
 
-    let client = reqwest::Client::new();
-    let image_file = client.get(&format!("{url}&alt=media")).header(AUTHORIZATION, format!("Bearer {auth_token}")).send().await?.text().await?;
+    let mut file = File::create(&format!("{PHOTOS_NAME}/{file_name}"))?;
 
-    Ok(image_file)
+    let mut handle = Easy::new();
+    handle.url(&url)?;
+    handle.write_function(move |data| {
+        file.write_all(data).unwrap();
+        Ok(data.len())
+    })?;
+
+    let mut list = List::new();
+    list.append(&format!("Authorization: Bearer {auth_token}"))?;
+    handle.http_headers(list)?;
+
+    handle.perform()?;
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error>{
-    let current_task = Task::FetchPhotos;
+    //let current_task = Task::FetchPhotos;
 
     let token = get_auth_token().await?;
     let folder_list = list_files(&token, FOLDER_ID).await?;
@@ -99,8 +110,8 @@ async fn main() -> Result<(), anyhow::Error>{
 
     let mut all_files_content = Map::<String, Value>::new();
 
-    match current_task {
-        Task::FetchFiles => {
+    //match current_task {
+    //    Task::FetchFiles => {
             for i in all_files_id.iter(){
                 let file_type = i["mimeType"].as_str().unwrap();
 
@@ -115,9 +126,9 @@ async fn main() -> Result<(), anyhow::Error>{
             let json_result = Value::Object(all_files_content);
             let mut file = File::create("json_result.json")?;
             file.write_all(json_result.to_string().as_bytes())?;
-        },
+    //     },
 
-        Task::FetchPhotos => {
+    //     Task::FetchPhotos => {
             let dir_path = &format!("./{PHOTOS_NAME}");
             if Path::new(dir_path).is_dir() {
                 fs::remove_dir_all(PHOTOS_NAME)?;
@@ -138,17 +149,15 @@ async fn main() -> Result<(), anyhow::Error>{
                         let image_id = j["id"].as_str().unwrap();
                         let mime_type = j["mimeType"].as_str().unwrap();
                         let file_name = j["name"].as_str().unwrap();
-                        let image_content_buffer = download_image(&token, image_id, mime_type).await?;
+
+                        download_image(file_name, &token, image_id, mime_type).await?;
                         // println!("{:?}", image_content_buffer);
 
-                        let mut file = File::create(&format!("{PHOTOS_NAME}/{file_name}"))?;
-                        file.write_all(image_content_buffer.to_string().as_bytes())?;
-                        // let _file = image::save_buffer(&Path::new(&format!("{PHOTOS_NAME}/{file_name}")), image_content_buffer.as_bytes(), 1271, 1310, image::ColorType::Rgba8);
                     }
                 }
             }
-        },
-    }
+    //     },
+    // }
     
     Ok(())
 }
