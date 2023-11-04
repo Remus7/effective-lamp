@@ -31,7 +31,7 @@ enum Task{
 /// Get the authenticator token for the service account
 /// Necessary in order to establish the scope of the request
 async fn get_auth_token() -> Result<String, anyhow::Error>{
-    let service_account_key : ServiceAccountKey = read_service_account_key(Path::new("../../systems-cs-pub-ro-497f6e6f3774.json")).await?;
+    let service_account_key : ServiceAccountKey = read_service_account_key(Path::new("../systems-cs-pub-ro-497f6e6f3774.json")).await?;
     let authenticator = ServiceAccountAuthenticator::builder(service_account_key).build().await.expect("Failed to create authentication");
     let scopes = &["https://www.googleapis.com/auth/drive.readonly"];
 
@@ -82,12 +82,12 @@ async fn convert_content(auth_token: &str, file_id: &str) -> Result<Value, anyho
 }
 
 /// Download image, indentified by file_id
-async fn download_image(file_name: &str, auth_token: &str, file_id: &str, mime_type: &str) -> Result<(), anyhow::Error>{
+async fn download_image(folder:&str, file_name: &str, auth_token: &str, file_id: &str, mime_type: &str) -> Result<(), anyhow::Error>{
     let endpoint = "https://www.googleapis.com";
     let url = format!("{endpoint}/drive/v3/files/{file_id}?mimeType={mime_type}&alt=media");
     // println!("{}", url);
 
-    let mut file = File::create(&format!("{PHOTOS_NAME}/{file_name}"))?;
+    let mut file = File::create(&format!("{folder}/{file_name}"))?;
 
     let mut handle = Easy::new();
     handle.url(&url)?;
@@ -104,13 +104,19 @@ async fn download_image(file_name: &str, auth_token: &str, file_id: &str, mime_t
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error>{
-    let current_task = Task::FetchAll;
+async fn fetch_content(current_task: Task) -> Result<(), anyhow::Error>{
 
     let token = get_auth_token().await?;
     let folder_list = list_files(&token, FOLDER_ID).await?;
     let all_files_id = Value::as_array(&folder_list["files"]).unwrap();
+
+    let result_dir_path = &format!("./result");
+    if Path::new(result_dir_path).is_dir() {
+        fs::remove_dir_all("result")?;
+    }
+    fs::create_dir(result_dir_path)?;
+
+    println!("Created result folder");
 
     if current_task == Task::FetchFiles || current_task == Task::FetchAll {
         let mut all_files_content = Map::<String, Value>::new();
@@ -126,15 +132,16 @@ async fn main() -> Result<(), anyhow::Error>{
                 all_files_content.insert(file_name.to_owned(), file_content);
             }
         }
+
         let json_result = Value::Object(all_files_content);
-        let mut file = File::create("json_result.json")?;
+        let mut file = File::create(format!("{result_dir_path}/json_result.json"))?;
         file.write_all(json_result.to_string().as_bytes())?;
 
         println!("Succesfully fetched file contents as json");
     }
 
     if current_task == Task::FetchPhotos || current_task == Task::FetchAll {
-        let dir_path = &format!("./{PHOTOS_NAME}");
+        let dir_path = &format!("{result_dir_path}/{PHOTOS_NAME}");
         if Path::new(dir_path).is_dir() {
             fs::remove_dir_all(PHOTOS_NAME)?;
         }
@@ -155,7 +162,7 @@ async fn main() -> Result<(), anyhow::Error>{
                     let mime_type = j["mimeType"].as_str().unwrap();
                     let file_name = j["name"].as_str().unwrap();
 
-                    download_image(file_name, &token, image_id, mime_type).await?;
+                    download_image(dir_path, file_name, &token, image_id, mime_type).await?;
                     // println!("{:?}", image_content_buffer);
 
                 }
@@ -169,7 +176,7 @@ async fn main() -> Result<(), anyhow::Error>{
         let file_id = folder_content["files"][0]["id"].as_str().unwrap();
 
         let sric_curriculum = convert_content(&token, file_id).await?;
-        let mut file = File::create("sric_curriculum.json")?;
+        let mut file = File::create(format!("{result_dir_path}/sric_curriculum.json"))?;
         file.write_all(sric_curriculum.to_string().as_bytes())?;
 
         println!("Succesfully fetched curriculum");
@@ -177,3 +184,10 @@ async fn main() -> Result<(), anyhow::Error>{
 
     Ok(())
 }
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    fetch_content(Task::FetchAll).await?;
+    Ok(())
+}
+
