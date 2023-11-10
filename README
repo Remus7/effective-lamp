@@ -1,5 +1,7 @@
-Simple HTTP client CLI app that can:
-  -> Fetch an entry (GET)
-  -> Create a new entry (POST)
+Google Drive client app that logs into a service account, and fetches files from a shared Drive.
+Results are stored on the current machine, in a folder named "result".
 
-The code should be simplified and clarified (Work in Progress)
+Currently fetches:
+1) All excel documents and converts them to .json format
+2) Photos from subdirectories of the drive, and stores them in a folder at /result/people
+3) Curriculum excel from another shared Drive accesible to the user
