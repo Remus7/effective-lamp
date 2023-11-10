@@ -1,1 +1,1 @@
-cargo add csv_to_json
+cargo install csv2json
