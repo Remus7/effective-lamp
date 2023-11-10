@@ -6,8 +6,9 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use curl::easy::{Easy, List};
+use std::env;
 
-use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey, read_service_account_key};
+use yup_oauth2::{ServiceAccountAuthenticator, parse_service_account_key};
 use std::path::Path;
 use reqwest::header::AUTHORIZATION;
 
@@ -31,7 +32,9 @@ enum Task{
 /// Get the authenticator token for the service account
 /// Necessary in order to establish the scope of the request
 async fn get_auth_token() -> Result<String, anyhow::Error>{
-    let service_account_key : ServiceAccountKey = read_service_account_key(Path::new("../systems-cs-pub-ro-497f6e6f3774.json")).await?;
+    let env_var_name = "ACCOUNT_KEY";
+    let service_account_key = parse_service_account_key(env::var(env_var_name).map_err(|_err| anyhow::anyhow!(format!("Failed to fetch {env_var_name}")))?)?;
+
     let authenticator = ServiceAccountAuthenticator::builder(service_account_key).build().await.expect("Failed to create authentication");
     let scopes = &["https://www.googleapis.com/auth/drive.readonly"];
 
