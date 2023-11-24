@@ -1,5 +1,3 @@
-Google Drive client app that logs into a service account, and fetches files from a shared Drive.
-Results are stored on the current machine, in a folder named "result".
 
 Currently fetches:
 1) All excel documents and converts them to .json format
